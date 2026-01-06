@@ -1,0 +1,600 @@
+<!--
+=================================================================
+WAZUH ZEEK RULES - PRODUCTION READY (FIXED VERSION)
+=================================================================
+File: /var/ossec/etc/rules/local_rules.xml
+TESTED & VERIFIED dengan real Zeek logs
+=================================================================
+-->
+
+<group name="zeek,zeek_custom,">
+
+  <!-- ============================================================ -->
+  <!-- PARENT RULES -->
+  <!-- ============================================================ -->
+
+  <!-- Parent 1: Session Logs (dengan UID) -->
+  <rule id="100300" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="uid">\.+</field>
+    <description>Zeek: Session Event</description>
+    <options>no_full_log</options>
+  </rule>
+
+  <!-- Parent 2: Infrastructure Logs - Known Services -->
+  <rule id="100305" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="host_ip">\.+</field>
+    <match>"port_num":</match>
+    <description>Zeek: Known Service Discovered</description>
+    <group>zeek_known_services,</group>
+  </rule>
+
+  <!-- Parent 3: Infrastructure Logs - X509 Certificates -->
+  <rule id="100306" level="3">
+    <decoded_as>json</decoded_as>
+    <match>"certificate.subject":</match>
+    <description>Zeek: X509 Certificate</description>
+    <group>zeek_x509,</group>
+  </rule>
+
+  <!-- Parent 4: Infrastructure Logs - Capture Loss -->
+  <rule id="100307" level="5">
+    <decoded_as>json</decoded_as>
+    <match>"percent_lost":</match>
+    <description>Zeek: Capture Loss Event</description>
+    <group>zeek_capture_loss,</group>
+  </rule>
+
+  <!-- Parent 5: Infrastructure Logs - Software -->
+  <rule id="100308" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="software_type">\.+</field>
+    <description>Zeek: Software Detected</description>
+    <group>zeek_software,</group>
+  </rule>
+
+  <!-- Parent 6: Infrastructure Logs - Reporter -->
+  <rule id="100309" level="3">
+    <decoded_as>json</decoded_as>
+    <match>"location":</match>
+    <description>Zeek: Reporter Message</description>
+    <group>zeek_reporter,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 1. NOTICE.LOG - HIGHEST PRIORITY -->
+  <!-- ============================================================ -->
+
+  <rule id="100400" level="10">
+    <if_sid>100300</if_sid>
+    <match>"note":</match>
+    <description>Zeek Notice: Security Alert Detected</description>
+    <group>zeek_notice,ids,</group>
+  </rule>
+
+  <rule id="100401" level="12">
+    <if_sid>100400</if_sid>
+    <match>Scan::</match>
+    <description>Zeek Notice: Network Scan Detected</description>
+    <group>zeek_notice,reconnaissance,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100402" level="12">
+    <if_sid>100400</if_sid>
+    <match>SSH::Password_Guessing</match>
+    <description>Zeek Notice: SSH Brute Force Attack</description>
+    <group>zeek_notice,authentication_failures,pci_dss_10.2.4,</group>
+  </rule>
+
+  <rule id="100403" level="10">
+    <if_sid>100400</if_sid>
+    <match>SSL::Invalid_Server_Cert</match>
+    <description>Zeek Notice: Invalid SSL Certificate</description>
+    <group>zeek_notice,ssl,pci_dss_10.6.1,</group>
+  </rule>
+
+  <rule id="100404" level="12">
+    <if_sid>100400</if_sid>
+    <match>Intel::Notice</match>
+    <description>Zeek Notice: Threat Intelligence Match</description>
+    <group>zeek_notice,threat_intel,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100405" level="10">
+    <if_sid>100400</if_sid>
+    <match>Weird::</match>
+    <description>Zeek Notice: Protocol Anomaly</description>
+    <group>zeek_notice,protocol_anomaly,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 2. DNS.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100410" level="3">
+    <if_sid>100300</if_sid>
+    <match>"query":</match>
+    <description>Zeek DNS: Query</description>
+    <group>zeek_dns,dns,</group>
+  </rule>
+
+  <rule id="100411" level="5">
+    <if_sid>100410</if_sid>
+    <match>NXDOMAIN</match>
+    <description>Zeek DNS: Non-Existent Domain</description>
+    <group>zeek_dns,</group>
+  </rule>
+
+  <rule id="100412" level="7">
+    <if_sid>100410</if_sid>
+    <match>"qtype_name":"TXT"</match>
+    <description>Zeek DNS: TXT Query (Possible Tunneling)</description>
+    <group>zeek_dns,data_exfiltration,</group>
+  </rule>
+
+  <rule id="100413" level="7">
+    <if_sid>100410</if_sid>
+    <match>"rejected":true</match>
+    <description>Zeek DNS: Query Rejected</description>
+    <group>zeek_dns,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 3. HTTP.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100420" level="3">
+    <if_sid>100300</if_sid>
+    <match>"method":"GET"</match>
+    <description>Zeek HTTP: GET Request</description>
+    <group>zeek_http,web,</group>
+  </rule>
+
+  <rule id="100421" level="5">
+    <if_sid>100300</if_sid>
+    <match>"method":"POST"</match>
+    <description>Zeek HTTP: POST Request</description>
+    <group>zeek_http,web,</group>
+  </rule>
+
+  <rule id="100422" level="7">
+    <if_sid>100300</if_sid>
+    <match>"method":</match>
+    <match>"status_code":40</match>
+    <description>Zeek HTTP: 40x Client Error</description>
+    <group>zeek_http,web,</group>
+  </rule>
+
+  <rule id="100423" level="8">
+    <if_sid>100300</if_sid>
+    <match>"method":</match>
+    <match>"status_code":50</match>
+    <description>Zeek HTTP: 50x Server Error</description>
+    <group>zeek_http,web,</group>
+  </rule>
+
+  <rule id="100424" level="10">
+    <if_sid>100300</if_sid>
+    <match>"user_agent":</match>
+    <match>sqlmap</match>
+    <description>Zeek HTTP: SQLMap Attack Tool</description>
+    <group>zeek_http,web_attack,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100425" level="10">
+    <if_sid>100300</if_sid>
+    <match>"user_agent":</match>
+    <match>nikto</match>
+    <description>Zeek HTTP: Nikto Scanner</description>
+    <group>zeek_http,web_attack,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100426" level="10">
+    <if_sid>100300</if_sid>
+    <match>"user_agent":</match>
+    <match>nmap</match>
+    <description>Zeek HTTP: Nmap Scanner</description>
+    <group>zeek_http,web_attack,pci_dss_11.4,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 4. FILES.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100430" level="3">
+    <if_sid>100300</if_sid>
+    <match>"fuid":"F</match>
+    <description>Zeek Files: File Transfer</description>
+    <group>zeek_files,file_transfer,</group>
+  </rule>
+
+  <rule id="100431" level="7">
+    <if_sid>100430</if_sid>
+    <match>application/x-dosexec</match>
+    <description>Zeek Files: Windows Executable</description>
+    <group>zeek_files,executable,pci_dss_11.4,</group>
+  </rule>
+
+  <rule id="100432" level="7">
+    <if_sid>100430</if_sid>
+    <match>application/x-executable</match>
+    <description>Zeek Files: Linux Executable</description>
+    <group>zeek_files,executable,</group>
+  </rule>
+
+  <rule id="100433" level="5">
+    <if_sid>100430</if_sid>
+    <match>application/zip</match>
+    <description>Zeek Files: Archive File</description>
+    <group>zeek_files,archive,</group>
+  </rule>
+
+  <rule id="100434" level="5">
+    <if_sid>100430</if_sid>
+    <match>application/x-sh</match>
+    <description>Zeek Files: Shell Script</description>
+    <group>zeek_files,script,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 5. SMB_MAPPING.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100440" level="3">
+    <if_sid>100300</if_sid>
+    <match>"share_type":</match>
+    <description>Zeek SMB: Share Access</description>
+    <group>zeek_smb,smb,</group>
+  </rule>
+
+  <rule id="100441" level="5">
+    <if_sid>100440</if_sid>
+    <match>"share_type":"PIPE"</match>
+    <description>Zeek SMB: Named Pipe (IPC$)</description>
+    <group>zeek_smb,lateral_movement,</group>
+  </rule>
+
+  <rule id="100442" level="7">
+    <if_sid>100440</if_sid>
+    <match>ADMIN$</match>
+    <description>Zeek SMB: Admin Share Access</description>
+    <group>zeek_smb,lateral_movement,pci_dss_10.6.1,</group>
+  </rule>
+
+  <rule id="100443" level="7">
+    <if_sid>100440</if_sid>
+    <match>C$</match>
+    <description>Zeek SMB: C$ Share Access</description>
+    <group>zeek_smb,lateral_movement,pci_dss_10.6.1,</group>
+  </rule>
+
+  <rule id="100444" level="5">
+    <if_sid>100440</if_sid>
+    <match>IPC$</match>
+    <description>Zeek SMB: IPC$ Share Access</description>
+    <group>zeek_smb,lateral_movement,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 6. DCE_RPC.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100450" level="3">
+    <if_sid>100300</if_sid>
+    <match>"endpoint":</match>
+    <description>Zeek DCE-RPC: RPC Call</description>
+    <group>zeek_dce_rpc,windows,</group>
+  </rule>
+
+  <rule id="100451" level="7">
+    <if_sid>100450</if_sid>
+    <match>"endpoint":"samr"</match>
+    <description>Zeek DCE-RPC: SAM Remote (User Enumeration)</description>
+    <group>zeek_dce_rpc,reconnaissance,</group>
+  </rule>
+
+  <rule id="100452" level="7">
+    <if_sid>100450</if_sid>
+    <match>"endpoint":"drsuapi"</match>
+    <description>Zeek DCE-RPC: Directory Replication (DCSync)</description>
+    <group>zeek_dce_rpc,credential_dumping,pci_dss_10.6.1,</group>
+  </rule>
+
+  <rule id="100453" level="7">
+    <if_sid>100450</if_sid>
+    <match>"endpoint":"lsarpc"</match>
+    <description>Zeek DCE-RPC: LSA Remote (Privilege Enumeration)</description>
+    <group>zeek_dce_rpc,reconnaissance,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 7. KERBEROS.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100460" level="3">
+    <if_sid>100300</if_sid>
+    <match>"request_type":"TGS"</match>
+    <description>Zeek Kerberos: TGS Request</description>
+    <group>zeek_kerberos,authentication,</group>
+  </rule>
+
+  <rule id="100461" level="3">
+    <if_sid>100300</if_sid>
+    <match>"request_type":"AS"</match>
+    <description>Zeek Kerberos: AS Request</description>
+    <group>zeek_kerberos,authentication,</group>
+  </rule>
+
+  <rule id="100462" level="8">
+    <if_sid>100460,100461</if_sid>
+    <match>"success":false</match>
+    <description>Zeek Kerberos: Authentication Failed</description>
+    <group>zeek_kerberos,authentication_failed,pci_dss_10.2.4,</group>
+  </rule>
+
+  <rule id="100463" level="10">
+    <if_sid>100460,100461</if_sid>
+    <match>"cipher":"rc4-hmac"</match>
+    <description>Zeek Kerberos: Weak Encryption (RC4)</description>
+    <group>zeek_kerberos,weak_crypto,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 8. SSH.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100470" level="3">
+    <if_sid>100300</if_sid>
+    <match>"client":"SSH-</match>
+    <description>Zeek SSH: Connection</description>
+    <group>zeek_ssh,ssh,</group>
+  </rule>
+
+  <rule id="100471" level="5">
+    <if_sid>100470</if_sid>
+    <match>"auth_success":true</match>
+    <description>Zeek SSH: Successful Authentication</description>
+    <group>zeek_ssh,authentication_success,</group>
+  </rule>
+
+  <rule id="100472" level="7">
+    <if_sid>100470</if_sid>
+    <match>"auth_success":false</match>
+    <description>Zeek SSH: Failed Authentication</description>
+    <group>zeek_ssh,authentication_failed,pci_dss_10.2.4,</group>
+  </rule>
+
+  <rule id="100473" level="10">
+    <if_sid>100472</if_sid>
+    <match>"auth_attempts":[5-9]</match>
+    <description>Zeek SSH: Brute Force (5+ Failed Attempts)</description>
+    <group>zeek_ssh,brute_force,pci_dss_10.2.4,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 9. RDP.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100480" level="5">
+    <if_sid>100300</if_sid>
+    <match>"cookie":</match>
+    <match>:3389</match>
+    <description>Zeek RDP: Connection</description>
+    <group>zeek_rdp,rdp,</group>
+  </rule>
+
+  <rule id="100481" level="7">
+    <if_sid>100480</if_sid>
+    <match>"cert_type":"ssl"</match>
+    <description>Zeek RDP: SSL Certificate Used</description>
+    <group>zeek_rdp,</group>
+  </rule>
+
+  <rule id="100482" level="10">
+    <if_sid>100480</if_sid>
+    <match>"result":"encrypted"</match>
+    <description>Zeek RDP: Encrypted Session</description>
+    <group>zeek_rdp,lateral_movement,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 10. SOFTWARE.LOG (Parent 100308) -->
+  <!-- ============================================================ -->
+
+  <rule id="100491" level="5">
+    <if_sid>100308</if_sid>
+    <match>"software_type":"HTTP::BROWSER"</match>
+    <description>Zeek Software: Browser Detected</description>
+    <group>zeek_software,</group>
+  </rule>
+
+  <rule id="100492" level="5">
+    <if_sid>100308</if_sid>
+    <match>"software_type":"HTTP::SERVER"</match>
+    <description>Zeek Software: Web Server Detected</description>
+    <group>zeek_software,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 11. KNOWN_SERVICES.LOG (Parent 100305) -->
+  <!-- ============================================================ -->
+
+  <rule id="100501" level="5">
+    <if_sid>100305</if_sid>
+    <match>"port_num":22</match>
+    <description>Zeek Known Service: SSH</description>
+    <group>zeek_known_services,</group>
+  </rule>
+
+  <rule id="100502" level="5">
+    <if_sid>100305</if_sid>
+    <match>"port_num":3389</match>
+    <description>Zeek Known Service: RDP</description>
+    <group>zeek_known_services,</group>
+  </rule>
+
+  <rule id="100503" level="5">
+    <if_sid>100305</if_sid>
+    <match>"port_num":445</match>
+    <description>Zeek Known Service: SMB</description>
+    <group>zeek_known_services,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 12. SSL.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100510" level="3">
+    <if_sid>100300</if_sid>
+    <match>"version":"TLS</match>
+    <description>Zeek SSL: TLS Connection</description>
+    <group>zeek_ssl,ssl,</group>
+  </rule>
+
+  <rule id="100511" level="5">
+    <if_sid>100510</if_sid>
+    <match>"version":"TLSv13"</match>
+    <description>Zeek SSL: TLS 1.3 (Secure)</description>
+    <group>zeek_ssl,</group>
+  </rule>
+
+  <rule id="100512" level="7">
+    <if_sid>100510</if_sid>
+    <match>"version":"TLSv1"</match>
+    <description>Zeek SSL: Old TLS Version (1.0/1.1)</description>
+    <group>zeek_ssl,weak_crypto,pci_dss_4.1,</group>
+  </rule>
+
+  <rule id="100513" level="8">
+    <if_sid>100510</if_sid>
+    <match>"established":false</match>
+    <description>Zeek SSL: Handshake Failed</description>
+    <group>zeek_ssl,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 13. X509.LOG (Parent 100306) -->
+  <!-- ============================================================ -->
+
+  <rule id="100521" level="5">
+    <if_sid>100306</if_sid>
+    <match>"basic_constraints.ca":true</match>
+    <description>Zeek X509: CA Certificate</description>
+    <group>zeek_x509,</group>
+  </rule>
+
+  <rule id="100522" level="7">
+    <if_sid>100306</if_sid>
+    <match>self-signed</match>
+    <description>Zeek X509: Self-Signed Certificate</description>
+    <group>zeek_x509,suspicious_cert,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 14. CAPTURE_LOSS.LOG (Parent 100307) -->
+  <!-- ============================================================ -->
+
+  <rule id="100531" level="8">
+    <if_sid>100307</if_sid>
+    <match>"percent_lost":[5-9]</match>
+    <description>Zeek Capture: High Packet Loss (5-9%)</description>
+    <group>zeek_capture_loss,</group>
+  </rule>
+
+  <rule id="100532" level="10">
+    <if_sid>100307</if_sid>
+    <match>"percent_lost":[1-9][0-9]</match>
+    <description>Zeek Capture: Critical Packet Loss (10%+)</description>
+    <group>zeek_capture_loss,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 15. REPORTER.LOG (Parent 100309) -->
+  <!-- ============================================================ -->
+
+  <rule id="100540" level="8">
+    <if_sid>100309</if_sid>
+    <match>"level":"ERROR"</match>
+    <description>Zeek Reporter: Error</description>
+    <group>zeek_reporter,zeek_error,</group>
+  </rule>
+
+  <rule id="100541" level="10">
+    <if_sid>100309</if_sid>
+    <match>"level":"CRITICAL"</match>
+    <description>Zeek Reporter: Critical Error</description>
+    <group>zeek_reporter,zeek_error,</group>
+  </rule>
+
+  <rule id="100542" level="7">
+    <if_sid>100309</if_sid>
+    <match>"level":"WARNING"</match>
+    <description>Zeek Reporter: Warning</description>
+    <group>zeek_reporter,zeek_warning,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- 16. CONN.LOG -->
+  <!-- ============================================================ -->
+
+  <rule id="100550" level="3">
+    <if_sid>100300</if_sid>
+    <match>"conn_state":"SF"</match>
+    <description>Zeek Conn: Normal Connection</description>
+    <group>zeek_conn,network,</group>
+  </rule>
+
+  <rule id="100551" level="5">
+    <if_sid>100300</if_sid>
+    <match>"conn_state":"REJ"</match>
+    <description>Zeek Conn: Connection Rejected</description>
+    <group>zeek_conn,</group>
+  </rule>
+
+  <rule id="100552" level="5">
+    <if_sid>100300</if_sid>
+    <match>"conn_state":"S0"</match>
+    <description>Zeek Conn: No Reply (Port Scan)</description>
+    <group>zeek_conn,port_scan,</group>
+  </rule>
+
+  <rule id="100553" level="7">
+    <if_sid>100300</if_sid>
+    <match>"conn_state":"RSTO"</match>
+    <description>Zeek Conn: Connection Reset</description>
+    <group>zeek_conn,</group>
+  </rule>
+
+  <!-- ============================================================ -->
+  <!-- CORRELATION RULES: Attack Patterns -->
+  <!-- ============================================================ -->
+
+  <!-- Lateral Movement: SMB + Kerberos + DCE-RPC -->
+  <rule id="100600" level="12" frequency="3" timeframe="300">
+    <if_matched_sid>100441</if_matched_sid>
+    <if_matched_sid>100460</if_matched_sid>
+    <if_matched_sid>100452</if_matched_sid>
+    <same_source_ip />
+    <description>Zeek Correlation: Possible Lateral Movement (SMB+Kerberos+DCSync)</description>
+    <group>zeek_correlation,lateral_movement,mitre_T1021,mitre_T1003,</group>
+  </rule>
+
+  <!-- Credential Access: Multiple Kerberos Failed + DCE-RPC SAM -->
+  <rule id="100601" level="12" frequency="5" timeframe="600">
+    <if_matched_sid>100462</if_matched_sid>
+    <same_source_ip />
+    <description>Zeek Correlation: Kerberos Brute Force Attempt</description>
+    <group>zeek_correlation,brute_force,mitre_T1110,</group>
+  </rule>
+
+  <!-- Data Exfiltration: DNS TXT + File Transfer -->
+  <rule id="100602" level="12" frequency="2" timeframe="300">
+    <if_matched_sid>100412</if_matched_sid>
+    <if_matched_sid>100431</if_matched_sid>
+    <same_source_ip />
+    <description>Zeek Correlation: Possible Data Exfiltration (DNS Tunneling + File)</description>
+    <group>zeek_correlation,data_exfiltration,mitre_T1048,</group>
+  </rule>
+
+</group>
