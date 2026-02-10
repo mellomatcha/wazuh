@@ -1,0 +1,309 @@
+{
+  "name": "Bissmillah SOAR",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c46cc891-8837-4ed8-bf1b-a0aabe192433",
+              "leftValue": "={{ $json.body.rule.id }}",
+              "rightValue": "60204",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7c3710e9-ae0a-4167-98f8-be3937a38a9a",
+      "name": "Filter 60204 (Failed Logon)",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        60,
+        200
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.21.3.135:5000/ad/user",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"username\": \"{{ $json.body._source.data.win.eventdata.targetUserName }}\"\n}",
+        "options": {}
+      },
+      "id": "bd4ee27f-a78a-4021-ae3d-b5a4fa17e43e",
+      "name": "Lookup User in AD",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        700,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.21.3.135:5000/ad/user/disable",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"username\": \"{{ $json.username_input }}\",\n  \"reason\": \"Wazuh Auto-Disable: {{ $('Filter 60204 (Failed Logon)').item.json.body._source.rule.frequency }} failed attempts (Rules: {{ $('Filter 60204 (Failed Logon)').item.json.body._source.rule.id }} {{ $('Check if Should Disable1').item.json.body._source.rule.description }} ) in 1 minute\"\n}",
+        "options": {}
+      },
+      "id": "06903329-7cb0-4e51-899e-2f2673f7e285",
+      "name": "Disable User Account",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        960,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alerts",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "165fd30d-957c-4fac-b125-eb70ba42eeb8",
+      "name": "Wazuh Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -260,
+        200
+      ],
+      "typeVersion": 2,
+      "webhookId": "aaad0fe4-a018-4045-8db7-59f9d42f5130"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "id": "f5d2a395-e7fe-4b9e-8bf2-a8019ec137c5",
+      "name": "Aggregate & Check Threshold1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        300,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "584ba600-acf6-4ef0-9bfd-9711fa21af14",
+              "leftValue": "={{ $json.body._source.rule.frequency }}",
+              "rightValue": 8,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e10fc1e-d90f-4272-b8cc-82ce5932e805",
+      "name": "Check if Should Disable1",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        480,
+        200
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "301e50b6-59b8-4554-9e51-efda7ac31c2b",
+              "leftValue": "={{ $json.body.rule.id }}",
+              "rightValue": "110012",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e6355a7-e2d8-4ec3-971e-9ccb261f4449",
+      "name": "Filter 110012 (Kerberos Spraying)",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        60,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {},
+      "name": "Stop - No Rule",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        420
+      ],
+      "id": "582bed24-adec-4391-ad69-ca631d8811da"
+    },
+    {
+      "parameters": {
+        "path": "0cec7edb-6988-433d-be0d-dff9904044a9",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        200
+      ],
+      "id": "3a9d0ad1-2f59-4328-94f9-f7d6dcd1a637",
+      "name": "Webhook",
+      "webhookId": "0cec7edb-6988-433d-be0d-dff9904044a9"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Filter 60204 (Failed Logon)": {
+      "main": [
+        [
+          {
+            "node": "Aggregate & Check Threshold1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop - No Rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup User in AD": {
+      "main": [
+        [
+          {
+            "node": "Disable User Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disable User Account": {
+      "main": [
+        []
+      ]
+    },
+    "Wazuh Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Filter 60204 (Failed Logon)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter 110012 (Kerberos Spraying)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate & Check Threshold1": {
+      "main": [
+        [
+          {
+            "node": "Check if Should Disable1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Should Disable1": {
+      "main": [
+        [
+          {
+            "node": "Lookup User in AD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop - No Rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter 110012 (Kerberos Spraying)": {
+      "main": [
+        [
+          {
+            "node": "Disable User Account",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop - No Rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "475746cc-482c-42f9-8da8-c458fddbc17b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8aff5ee65788464afd379be5f87689423a30a75a9f31b75c702fdc3946a0fee3"
+  },
+  "id": "GfLXk9ZnajUKJHRW",
+  "tags": []
+}
